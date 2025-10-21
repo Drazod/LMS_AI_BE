@@ -7,7 +7,6 @@ import { InstructorStatisticController } from '../controllers/InstructorStatisti
 import { CategoryController } from '../controllers/CategoryController';
 import { SectionController } from '../controllers/SectionController';
 import { ContentController } from '../controllers/ContentController';
-import { SpeechToTextController } from '../controllers/SpeechToTextController';
 import { CartController } from '../controllers/CartController';
 import { AuthenticationService } from '../services/AuthenticationService';
 import { UserService } from '../services/UserService';
@@ -43,7 +42,6 @@ const categoryController = new CategoryController(categoryService);
 const cartController = new CartController(cartService, studentService);
 const sectionController = new SectionController();
 const contentController = new ContentController();
-const speechController = new SpeechToTextController();
 
 export const setupApiRoutes = (router: Router): void => {
   
@@ -177,14 +175,6 @@ export const setupApiRoutes = (router: Router): void => {
   cartRouter.delete('/clear/:studentId', authMiddleware, cartController.clearCart);
   
   router.use('/cart', cartRouter);
-
-  // Speech-to-Text routes
-  const speechRouter = Router();
-  speechRouter.post('/transcribe', authMiddleware, ...cloudinaryUploadMiddleware.single('audioFile'), speechController.transcribeAudio);
-  speechRouter.post('/diagnose', authMiddleware, ...cloudinaryUploadMiddleware.single('audioFile'), speechController.diagnoseAudio);
-  speechRouter.get('/formats', speechController.getSupportedFormats);
-  
-  router.use('/speech', speechRouter);
 
   // Section routes
   const sectionRouter = Router();

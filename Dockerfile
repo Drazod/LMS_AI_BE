@@ -18,9 +18,6 @@ RUN npm run build
 # Production stage
 FROM node:20-alpine as production
 
-# Install Python for speech-to-text functionality
-RUN apk add --no-cache python3 py3-pip ffmpeg
-
 # Create app directory
 WORKDIR /app
 
@@ -31,14 +28,8 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy scripts directory for Python integration
-COPY scripts ./scripts
-
 # Create uploads directory
 RUN mkdir -p uploads
-
-# Install Python dependencies for speech recognition
-RUN pip3 install --no-cache-dir speechrecognition pydub openai python-dotenv
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs

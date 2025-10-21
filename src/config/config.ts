@@ -35,11 +35,6 @@ export const config = {
     uploadPath: process.env.UPLOAD_PATH || './uploads',
   },
   
-  // Python Script Configuration
-  python: {
-    scriptPath: process.env.PYTHON_SCRIPT_PATH || './scripts/speech_to_text.py',
-  },
-  
   // API Configuration
   api: {
     baseUrl: process.env.API_BASE_URL || 'http://localhost:8080/api',
