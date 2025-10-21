@@ -92,6 +92,9 @@ export const setupApiRoutes = (router: Router): void => {
   // Admin routes - Get all students
   studentRouter.get('/', authMiddleware, studentController.getAllStudents);
   
+  // Specific routes first (before parameterized routes)
+  studentRouter.put('/complete-section', authMiddleware, studentController.completeCurrentSection);
+  
   // CRUD operations
   studentRouter.get('/:id', authMiddleware, studentController.getStudentById);
   studentRouter.post('/', authMiddleware, studentController.createStudent);
@@ -110,7 +113,6 @@ export const setupApiRoutes = (router: Router): void => {
   // Student statistics and progress
   studentRouter.get('/:id/statistics', authMiddleware, studentController.getStudentStatistic);
   studentRouter.get('/:id/courses/:courseId/current-section', authMiddleware, studentController.getCurrentSection);
-  studentRouter.put('/complete-section', authMiddleware, studentController.completeCurrentSection);
   
   router.use('/students', studentRouter);
 

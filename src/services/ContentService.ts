@@ -71,8 +71,36 @@ export class ContentService {
     sectionId?: number;
   }): Promise<ContentDetailResponse> {
     try {
-      const content = this.getContentRepository().create(contentData);
-      const savedContent = await this.getContentRepository().save(content);
+      // Get the next available ID manually to avoid sequence conflicts
+      const maxIdResult = await this.getContentRepository()
+        .createQueryBuilder('content')
+        .select('COALESCE(MAX(content.id), 0) + 1', 'nextId')
+        .getRawOne();
+      
+      console.log('=== DEBUG: ID Generation ===');
+      console.log('maxIdResult:', JSON.stringify(maxIdResult, null, 2));
+      
+      const nextId = parseInt(maxIdResult.nextId);
+      console.log('Calculated nextId:', nextId);
+      
+      // Use raw query to insert with specific ID to bypass TypeORM auto-generation
+      const insertResult = await this.getContentRepository()
+        .createQueryBuilder()
+        .insert()
+        .into(ContentEntity)
+        .values({
+          id: nextId,
+          content: contentData.content,
+          position: contentData.position,
+          type: contentData.type,
+          sectionId: contentData.sectionId
+        })
+        .returning('*')
+        .execute();
+      
+      const savedContent = insertResult.generatedMaps[0] as ContentEntity;
+      console.log('Content inserted with ID:', savedContent.id);
+      console.log('=== END DEBUG ===');
 
       return {
         id: savedContent.id,

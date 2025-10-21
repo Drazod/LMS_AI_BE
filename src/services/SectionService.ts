@@ -135,7 +135,7 @@ export class SectionService {
         nextSectionId,
         sectionData.sectionName,
         sectionData.description || null,
-        sectionData.position,
+        nextSectionId, // Set position equal to section_id
         sectionData.sessionType || null,
         sectionData.title || null,
         sectionData.courseId || null

@@ -123,7 +123,7 @@ export class SectionController {
       }
 
       const courseId = parseInt(req.params.courseId);
-      const { 
+      let { 
         sectionName, 
         description, 
         position, 
@@ -132,6 +132,16 @@ export class SectionController {
         textContents,
         filePositions
       } = req.body;
+      
+      // Parse textContents if it's a string
+      if (typeof textContents === 'string') {
+        try {
+          textContents = JSON.parse(textContents);
+        } catch (error) {
+          console.error('Error parsing textContents:', error);
+          textContents = [];
+        }
+      }
       
       if (!courseId || !sectionName) {
         res.status(400).json({
@@ -145,7 +155,7 @@ export class SectionController {
       const sectionData = {
         sectionName,
         description,
-        position: position || 1, // Default position if not provided
+        position: 1, // This will be overridden to section_id in the service
         sessionType: sessionType as SessionType,
         title,
         courseId
@@ -157,10 +167,20 @@ export class SectionController {
       // Handle content creation if provided
       const createdContents: any[] = [];
       
+      console.log('=== DEBUG: Content creation process ===');
+      console.log('textContents received:', JSON.stringify(textContents, null, 2));
+      console.log('textContents is array:', Array.isArray(textContents));
+      console.log('Section ID created:', section.sectionId);
+      
       // Handle text contents
       if (textContents && Array.isArray(textContents)) {
+        console.log(`Processing ${textContents.length} text contents`);
         for (let i = 0; i < textContents.length; i++) {
           const textContent = textContents[i];
+          console.log(`Processing content ${i}:`, JSON.stringify(textContent, null, 2));
+          console.log(`Has content: ${!!textContent.content}`);
+          console.log(`Has contentType: ${!!textContent.contentType}`);
+          
           if (textContent.content && textContent.contentType) {
             try {
               const contentData = {
@@ -169,15 +189,24 @@ export class SectionController {
                 type: textContent.contentType as ContentType,
                 sectionId: section.sectionId
               };
+              console.log('Creating content with data:', JSON.stringify(contentData, null, 2));
               const newContent = await this.getContentService().createContent(contentData);
+              console.log('Content created successfully:', JSON.stringify(newContent, null, 2));
               createdContents.push(newContent);
             } catch (error) {
               console.error(`Error creating text content ${i}:`, error);
               // Continue with other content, don't fail the entire request
             }
+          } else {
+            console.log(`Skipping content ${i} - missing content or contentType`);
           }
         }
+      } else {
+        console.log('No textContents provided or not an array');
       }
+      
+      console.log(`Total contents created: ${createdContents.length}`);
+      console.log('=== END DEBUG ===');
 
       // Handle video files if uploaded
       if ((req as any).cloudinaryUrls && Array.isArray((req as any).cloudinaryUrls)) {
