@@ -122,9 +122,6 @@ export interface UserAddressRequest {
 export interface SectionCompleteRequest {
   studentId: number;
   sectionId: number;
-  courseId: number;
-  completedAt?: Date;
-  progress?: number; // 0-100
 }
 
 // Instructor Request DTOs

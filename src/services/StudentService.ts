@@ -447,17 +447,108 @@ export class StudentService {
    * Complete section
    */
   async completeSection(request: SectionCompleteRequest): Promise<SectionCompleteResponse> {
-    // Mock implementation - replace with database integration
-    return {
-      sectionId: request.sectionId,
-      studentId: request.studentId,
-      courseId: request.courseId,
-      sectionTitle: 'Mock Section',
-      completedAt: new Date(),
-      progress: request.progress || 100,
-      nextSectionId: request.sectionId + 1,
-      isLastSection: false
-    };
+    try {
+      const connection = getConnection();
+      
+      // 1. Find the section from request
+      const sectionResult = await connection.query(
+        `SELECT 
+           s.section_id,
+           s.course_id,
+           s.position
+         FROM section s
+         WHERE s.section_id = $1`,
+        [request.sectionId]
+      );
+
+      if (sectionResult.length === 0) {
+        throw new Error('Section not found');
+      }
+
+      const currentSectionInRequest = sectionResult[0];
+      const courseId = currentSectionInRequest.course_id;
+
+      // 2. Find enrollment
+      const enrollmentResult = await connection.query(
+        `SELECT 
+           e.student_id,
+           e.course_id,
+           e.current_section_position,
+           e.is_complete,
+           e.completion_date
+         FROM enrollments e
+         WHERE e.student_id = $1 AND e.course_id = $2`,
+        [request.studentId, courseId]
+      );
+
+      if (enrollmentResult.length === 0) {
+        throw new Error('Student has not enrolled in this course');
+      }
+
+      const enrollment = enrollmentResult[0];
+
+      if (enrollment.is_complete) {
+        throw new Error('No more sections to complete');
+      }
+
+      // 3. Find current section in database based on enrollment position
+      const currentSectionInDBResult = await connection.query(
+        `SELECT 
+           s.section_id,
+           s.position
+         FROM section s
+         WHERE s.course_id = $1 AND s.position = $2`,
+        [courseId, enrollment.current_section_position]
+      );
+
+      if (currentSectionInDBResult.length === 0) {
+        throw new Error('No more sections to complete');
+      }
+
+      const currentSectionInDB = currentSectionInDBResult[0];
+
+      // 4. Validate that request section matches current section in database
+      if (currentSectionInRequest.section_id !== currentSectionInDB.section_id) {
+        throw new Error('This section is not the current section');
+      }
+
+      // 5. Find last section position
+      const lastSectionResult = await connection.query(
+        `SELECT MAX(position) as max_position
+         FROM section 
+         WHERE course_id = $1`,
+        [courseId]
+      );
+
+      const lastPosition = lastSectionResult[0].max_position;
+
+      // 6. Update enrollment based on whether this is the last section
+      if (currentSectionInDB.position === lastPosition) {
+        // Complete last section -> complete course, set current section to null
+        await connection.query(
+          `UPDATE enrollments 
+           SET current_section_position = NULL,
+               is_complete = true,
+               completion_date = NOW()
+           WHERE student_id = $1 AND course_id = $2`,
+          [request.studentId, courseId]
+        );
+      } else {
+        // Move to next section
+        await connection.query(
+          `UPDATE enrollments 
+           SET current_section_position = current_section_position + 1
+           WHERE student_id = $1 AND course_id = $2`,
+          [request.studentId, courseId]
+        );
+      }
+
+      // 7. Return new current section status
+      return await this.getCurrentSection(request.studentId, courseId);
+
+    } catch (error: any) {
+      throw new Error(`Failed to complete section: ${error.message}`);
+    }
   }
 
   /**
@@ -467,124 +558,76 @@ export class StudentService {
     try {
       const connection = getConnection();
       
-      // Get enrollment information with current section position
+      // Get enrollment information
       const enrollmentResult = await connection.query(
         `SELECT 
            e.current_section_position,
            e.is_complete,
-           e.completion_date,
-           e.enrollment_date
+           e.completion_date
          FROM enrollments e
-         WHERE e.student_id = $1 AND e.course_id = $2
-         LIMIT 1`,
+         WHERE e.student_id = $1 AND e.course_id = $2`,
         [studentId, courseId]
       );
 
       if (enrollmentResult.length === 0) {
-        throw new Error('Student is not enrolled in this course');
-      }
-
-      const enrollment = enrollmentResult[0];
-      const currentPosition = enrollment.current_section_position || 0;
-
-      // If course is completed, get the last section
-      if (enrollment.is_complete) {
-        const lastSectionResult = await connection.query(
-          `SELECT 
-             s.section_id,
-             s.section_name,
-             s.title,
-             s.position,
-             (SELECT COUNT(*) FROM section WHERE course_id = s.course_id) as total_sections
-           FROM section s
-           WHERE s.course_id = $1
-           ORDER BY s.position DESC
-           LIMIT 1`,
-          [courseId]
-        );
-
-        if (lastSectionResult.length > 0) {
-          const section = lastSectionResult[0];
-          return {
-            sectionId: section.section_id,
-            studentId,
-            courseId,
-            sectionTitle: section.title || section.section_name || 'Final Section',
-            completedAt: new Date(enrollment.completion_date || enrollment.enrollment_date),
-            progress: 100,
-            nextSectionId: undefined,
-            isLastSection: true
-          };
-        }
-      }
-
-      // Get current or next section based on position
-      const sectionResult = await connection.query(
-        `SELECT 
-           s.section_id,
-           s.section_name,
-           s.title,
-           s.position,
-           (SELECT COUNT(*) FROM section WHERE course_id = s.course_id) as total_sections,
-           (SELECT section_id FROM section WHERE course_id = s.course_id AND position > s.position ORDER BY position ASC LIMIT 1) as next_section_id
-         FROM section s
-         WHERE s.course_id = $1 AND s.position >= $2
-         ORDER BY s.position ASC
-         LIMIT 1`,
-        [courseId, Math.max(currentPosition, 1)]
-      );
-
-      if (sectionResult.length === 0) {
-        // No sections found, return first section
-        const firstSectionResult = await connection.query(
-          `SELECT 
-             s.section_id,
-             s.section_name,
-             s.title,
-             s.position,
-             (SELECT COUNT(*) FROM section WHERE course_id = s.course_id) as total_sections,
-             (SELECT section_id FROM section WHERE course_id = s.course_id AND position > s.position ORDER BY position ASC LIMIT 1) as next_section_id
-           FROM section s
-           WHERE s.course_id = $1
-           ORDER BY s.position ASC
-           LIMIT 1`,
-          [courseId]
-        );
-
-        if (firstSectionResult.length === 0) {
-          throw new Error('No sections found for this course');
-        }
-
-        const section = firstSectionResult[0];
         return {
-          sectionId: section.section_id,
-          studentId,
-          courseId,
-          sectionTitle: section.title || section.section_name || 'First Section',
-          completedAt: new Date(enrollment.enrollment_date),
-          progress: 0,
-          nextSectionId: section.next_section_id,
-          isLastSection: section.next_section_id === null
+          sectionId: null,
+          position: null,
+          courseCompleted: false,
+          message: 'Student has not enrolled in this course.'
         };
       }
 
-      const section = sectionResult[0];
-      const totalSections = parseInt(section.total_sections);
-      const currentProgress = currentPosition > 0 ? Math.round((currentPosition / totalSections) * 100) : 0;
+      const enrollment = enrollmentResult[0];
+
+      if (enrollment.is_complete) {
+        return {
+          sectionId: null,
+          position: null,
+          courseCompleted: true,
+          message: 'Course is completed. No current section.'
+        };
+      }
+
+      if (enrollment.current_section_position === null) {
+        return {
+          sectionId: null,
+          position: null,
+          courseCompleted: false,
+          message: 'No section started yet. Please begin the course.'
+        };
+      }
+
+      // Find current section by position
+      const currentSectionResult = await connection.query(
+        `SELECT 
+           s.section_id,
+           s.position
+         FROM section s
+         WHERE s.course_id = $1 AND s.position = $2`,
+        [courseId, enrollment.current_section_position]
+      );
+
+      if (currentSectionResult.length === 0) {
+        return {
+          sectionId: null,
+          position: null,
+          courseCompleted: false,
+          message: 'Current section not found. Please contact support.'
+        };
+      }
+
+      const currentSection = currentSectionResult[0];
 
       return {
-        sectionId: section.section_id,
-        studentId,
-        courseId,
-        sectionTitle: section.title || section.section_name || `Section ${section.position}`,
-        completedAt: currentPosition >= section.position ? new Date() : new Date(enrollment.enrollment_date),
-        progress: currentProgress,
-        nextSectionId: section.next_section_id,
-        isLastSection: section.next_section_id === null
+        sectionId: currentSection.section_id,
+        position: currentSection.position,
+        courseCompleted: false,
+        message: 'Current section in progress.'
       };
-    } catch (error) {
-      console.error('Error getting current section:', error);
-      throw new Error('Failed to get current section');
+
+    } catch (error: any) {
+      throw new Error(`Failed to get current section: ${error.message}`);
     }
   }
 

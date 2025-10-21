@@ -110,7 +110,7 @@ export const setupApiRoutes = (router: Router): void => {
   // Student statistics and progress
   studentRouter.get('/:id/statistics', authMiddleware, studentController.getStudentStatistic);
   studentRouter.get('/:id/courses/:courseId/current-section', authMiddleware, studentController.getCurrentSection);
-  studentRouter.post('/:id/courses/:courseId/complete-section', authMiddleware, studentController.completeCurrentSection);
+  studentRouter.put('/complete-section', authMiddleware, studentController.completeCurrentSection);
   
   router.use('/students', studentRouter);
 

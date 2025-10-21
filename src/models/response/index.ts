@@ -203,14 +203,10 @@ export interface UserAddressResponse {
 
 // Section Completion Response DTOs
 export interface SectionCompleteResponse {
-  sectionId: number;
-  studentId: number;
-  courseId: number;
-  sectionTitle: string;
-  completedAt: Date;
-  progress: number;
-  nextSectionId?: number;
-  isLastSection: boolean;
+  sectionId?: number | null;
+  position?: number | null;
+  courseCompleted: boolean;
+  message: string;
 }
 
 // Metadata for Pagination
