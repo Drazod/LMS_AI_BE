@@ -20,4 +20,27 @@ coverage/
 *.swp
 *.swo
 *~
-.csv
+*.csv
+
+# Database backups and dumps
+*_backup.csv
+*.dump
+restore_data.sql
+
+# PostgreSQL files
+postgresql/
+postgresql-binaries.zip
+
+# Import/export scripts
+clear_and_import.ps1
+export_all_tables.ps1
+import_all_tables*.ps1
+
+# Test files
+test-*.ts
+test-*.js
+test_*.js
+test-image.txt
+
+# Schema check files
+check_schema.js

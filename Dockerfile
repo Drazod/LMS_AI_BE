@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine as builder
+FROM node:20-alpine as builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine as production
+FROM node:20-alpine as production
 
 # Install Python for speech-to-text functionality
 RUN apk add --no-cache python3 py3-pip ffmpeg
