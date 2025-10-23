@@ -1,3 +1,4 @@
+import { QuestionEntity } from './QuestionEntity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -46,4 +47,7 @@ export class SectionEntity {
   @ManyToOne(() => CourseEntity, { nullable: true })
   @JoinColumn({ name: 'course_id' })
   course?: CourseEntity;
+
+  @OneToMany(() => QuestionEntity, (question) => question.section)
+  questions?: QuestionEntity[];
 }

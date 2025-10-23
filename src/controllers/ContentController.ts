@@ -1,8 +1,17 @@
+import { QuestionService } from '../services/QuestionService';
 import { Request, Response } from 'express';
 import { ContentService } from '../services/ContentService';
 import { ContentType } from '../models/entities/ContentEntity';
 
 export class ContentController {
+  private questionService?: QuestionService;
+
+  private getQuestionService(): QuestionService {
+    if (!this.questionService) {
+      this.questionService = new QuestionService();
+    }
+    return this.questionService;
+  }
   private contentService?: ContentService;
 
   private getContentService(): ContentService {
@@ -42,13 +51,15 @@ export class ContentController {
         });
         return;
       }
-
       const contents = await this.getContentService().getContentsBySectionId(sectionId);
-      
+      const questions = await this.getQuestionService().getQuestionsBySection(sectionId);
       res.status(200).json({
         success: true,
-        data: contents,
-        message: 'Contents retrieved successfully'
+        data: {
+          contents,
+          questions
+        },
+        message: 'Contents and questions retrieved successfully'
       });
     } catch (error) {
       console.error('Error in getContentsBySection:', error);

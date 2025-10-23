@@ -43,11 +43,17 @@ export interface CourseStatusRequest {
 }
 
 // Section Request DTOs
+
+export interface QuestionCreateRequest {
+  questionText: string;
+}
+
 export interface SectionCreateRequest {
   title: string;
   description?: string;
   orderIndex: number;
   courseId: number;
+  questions?: QuestionCreateRequest[];
 }
 
 export interface SectionUpdateRequest {

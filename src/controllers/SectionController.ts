@@ -3,10 +3,12 @@ import { SectionService } from '../services/SectionService';
 import { ContentService } from '../services/ContentService';
 import { SessionType } from '../models/entities/SectionEntity';
 import { ContentType } from '../models/entities/ContentEntity';
+import { QuestionService } from '../services/QuestionService';
 
 export class SectionController {
   private sectionService?: SectionService;
   private contentService?: ContentService;
+  private questionService?: QuestionService;
 
   private getSectionService(): SectionService {
     if (!this.sectionService) {
@@ -20,6 +22,13 @@ export class SectionController {
       this.contentService = new ContentService();
     }
     return this.contentService;
+  }
+
+  private getQuestionService(): QuestionService {
+    if (!this.questionService) {
+      this.questionService = new QuestionService();
+    }
+    return this.questionService;
   }
 
   /**
@@ -130,7 +139,8 @@ export class SectionController {
         sessionType, 
         title,
         textContents,
-        filePositions
+        filePositions,
+        questions
       } = req.body;
       
       // Parse textContents if it's a string
@@ -163,6 +173,15 @@ export class SectionController {
 
       // Create the section first
       const section = await this.getSectionService().createSection(sectionData);
+      // Handle questions if provided
+  let createdQuestions: import('../models/entities/QuestionEntity').QuestionEntity[] = [];
+      if (questions && Array.isArray(questions) && questions.length > 0) {
+        try {
+          createdQuestions = await this.getQuestionService().createQuestions(section.sectionId, questions);
+        } catch (error) {
+          console.error('Error creating questions:', error);
+        }
+      }
       
       // Handle content creation if provided
       const createdContents: any[] = [];
@@ -230,10 +249,11 @@ export class SectionController {
         }
       }
 
-      // Return section with created contents
+      // Return section with created contents and questions
       const response = {
         ...section,
-        contents: createdContents
+        contents: createdContents,
+        questions: createdQuestions
       };
       
       res.status(201).json({
