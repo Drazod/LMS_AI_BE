@@ -1,5 +1,5 @@
 import { AnswerController } from '../controllers/AnswerController';
-const answerController = new AnswerController();
+
 import { Router } from 'express';
 import { AuthenticationController } from '../controllers/AuthenticationController';
 import { CourseController } from '../controllers/CourseController';
@@ -33,7 +33,7 @@ const studentService = new StudentService();
 const instructorService = new InstructorService();
 const categoryService = new CategoryService();
 const cartService = CartService.getInstance();
-
+const answerController = new AnswerController();
 // Initialize controllers
 const authController = new AuthenticationController(authService, emailService, userService);
 const courseController = new CourseController(courseService);
@@ -48,10 +48,10 @@ const contentController = new ContentController();
 export const setupApiRoutes = (router: Router): void => {
   // Answer routes
   const answerRouter = Router();
-  answerRouter.post('/questions/:questionId/answers', answerController.submitAnswer);
-  answerRouter.get('/questions/:questionId/answers', answerController.getAnswersByQuestion);
-  answerRouter.patch('/answers/:answerId/grade', answerController.gradeAnswer);
-  router.use('/api', answerRouter);
+  answerRouter.post('/:questionId', answerController.submitAnswer);
+  answerRouter.get('/:questionId', answerController.getAnswersByQuestion);
+  answerRouter.patch('/:answerId/grade', answerController.gradeAnswer);
+  router.use('/answers', answerRouter);
   
   // Authentication routes
   const authRouter = Router();
