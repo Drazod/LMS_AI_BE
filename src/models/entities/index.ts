@@ -1,3 +1,4 @@
+export * from './AnswerEntity';
 export * from './QuestionEntity';
 export * from './base';
 export * from './UserEntity';
