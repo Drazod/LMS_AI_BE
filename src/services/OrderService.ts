@@ -396,6 +396,14 @@ export class OrderService {
         throw new Error('No items in the cart');
       }
 
+      // Fix sequence if needed (ensure it's ahead of existing IDs)
+      await queryRunner.query(`
+        SELECT setval('orders_order_id_seq', 
+          COALESCE((SELECT MAX(order_id) FROM orders), 0) + 1, 
+          false
+        )
+      `);
+
       // Create order
       const orderResult = await queryRunner.query(
         `INSERT INTO orders (student_id, payment_date, total_price)
