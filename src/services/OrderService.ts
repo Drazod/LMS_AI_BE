@@ -376,7 +376,7 @@ export class OrderService {
     try {
       // Get cart
       const cartResult = await queryRunner.query(
-        'SELECT cart_id FROM cart WHERE student_id = $1',
+        'SELECT cart_id FROM carts WHERE student_id = $1',
         [studentId]
       );
 
