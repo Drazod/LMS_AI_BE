@@ -214,7 +214,7 @@ export const setupApiRoutes = (router: Router): void => {
 
   // Payment routes
   const paymentRouter = Router();
-  paymentRouter.get('/vn-pay-callback', paymentController.payCallbackHandler.bind(paymentController));
+  paymentRouter.get('/vnpay-callback', paymentController.payCallbackHandler.bind(paymentController));
   
   router.use('/payment', paymentRouter);
 
