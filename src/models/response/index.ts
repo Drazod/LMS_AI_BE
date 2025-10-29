@@ -259,3 +259,10 @@ export interface ErrorResponse {
   timestamp: string;
   path: string;
 }
+
+// Order Response DTOs
+export interface CheckoutResponse {
+  totalPrice: number;
+  discountPrice: number;
+  finalPrice: number;
+}

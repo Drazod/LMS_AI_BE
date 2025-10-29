@@ -1,5 +1,6 @@
 import { AnswerController } from '../controllers/AnswerController';
 import { PaymentController } from '../controllers/PaymentController';
+import { OrderController } from '../controllers/OrderController';
 
 import { Router } from 'express';
 import { AuthenticationController } from '../controllers/AuthenticationController';
@@ -21,6 +22,7 @@ import { InstructorService } from '../services/InstructorService';
 import { CategoryService } from '../services/CategoryService';
 import { CartService } from '../services/CartService';
 import { OrderService } from '../services/OrderService';
+import { PaymentService } from '../services/PaymentService';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { uploadMiddleware } from '../middleware/uploadMiddleware';
 import { cloudinaryUploadMiddleware } from '../middleware/cloudinaryUploadMiddleware';
@@ -36,8 +38,10 @@ const instructorService = new InstructorService();
 const categoryService = new CategoryService();
 const cartService = CartService.getInstance();
 const orderService = new OrderService();
+const paymentService = new PaymentService();
 const answerController = new AnswerController();
 const paymentController = new PaymentController(orderService);
+const orderController = new OrderController(orderService, paymentService);
 // Initialize controllers
 const authController = new AuthenticationController(authService, emailService, userService);
 const courseController = new CourseController(courseService);
@@ -213,6 +217,13 @@ export const setupApiRoutes = (router: Router): void => {
   paymentRouter.get('/vn-pay-callback', paymentController.payCallbackHandler.bind(paymentController));
   
   router.use('/payment', paymentRouter);
+
+  // Order routes
+  const orderRouter = Router();
+  orderRouter.post('/checkout', authMiddleware, orderController.checkoutOrder.bind(orderController));
+  orderRouter.post('/processingPurchase', authMiddleware, orderController.processingPurchase.bind(orderController));
+  
+  router.use('/orders', orderRouter);
 
   // Health check route
   router.get('/health', (req, res) => {

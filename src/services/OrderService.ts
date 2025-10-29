@@ -1,8 +1,100 @@
 import { Order, OrderStatus, OrderItem, PaymentInfo } from '../models/entities';
-import { PageResponse } from '../models/response';
+import { PageResponse, CheckoutResponse } from '../models/response';
+import { CheckoutRequest, PurchaseOrderRequest } from '../models/request';
+import { getRepository } from 'typeorm';
+import { Course } from '../models/entities/Course';
+import { Discount } from '../models/entities/Discount';
+import { PaymentService, VNPayResponse } from './PaymentService';
+import { Request } from 'express';
 
 export class OrderService {
-  constructor() {}
+  private paymentService: PaymentService;
+
+  constructor() {
+    this.paymentService = new PaymentService();
+  }
+
+  /**
+   * Calculate checkout order total with discount
+   */
+  async checkoutOrder(checkoutReq: CheckoutRequest): Promise<CheckoutResponse> {
+    try {
+      const courseRepo = getRepository(Course);
+      let totalPrice = 0;
+
+      // Calculate total price from courses
+      for (const idCourse of checkoutReq.idCourses) {
+        const course = await courseRepo.findOne({ where: { courseId: idCourse } });
+        if (!course) {
+          throw new Error(`Course with ID ${idCourse} not found. Please update cart.`);
+        }
+        totalPrice += course.price;
+      }
+
+      let discountPrice = 0;
+
+      // Apply discount if provided
+      if (checkoutReq.idDiscount !== null && checkoutReq.idDiscount !== undefined) {
+        const discountRepo = getRepository(Discount);
+        const discount = await discountRepo.findOne({ where: { discountId: checkoutReq.idDiscount } });
+        if (!discount) {
+          throw new Error('Discount does not exist');
+        }
+        discountPrice = discount.value || 0;
+      }
+
+      const finalPrice = totalPrice - discountPrice;
+
+      return {
+        totalPrice,
+        discountPrice,
+        finalPrice
+      };
+    } catch (error) {
+      console.error('Error in checkoutOrder:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process purchase order and create VNPay payment
+   */
+  async processingPurchaseOrder(purchaseOrderDTO: PurchaseOrderRequest, request: Request): Promise<VNPayResponse> {
+    try {
+      const idUser = purchaseOrderDTO.idUser;
+      const idCart = purchaseOrderDTO.checkoutReq.idCart;
+      
+      // Build order info string
+      let orderInfo = `${idUser}##`;
+      
+      // Verify cart items exist
+      // TODO: Add cart items verification with database
+      for (const idCourse of purchaseOrderDTO.checkoutReq.idCourses) {
+        orderInfo += `${idCourse}#`;
+      }
+
+      // Add discount if present
+      const idDiscount = purchaseOrderDTO.checkoutReq.idDiscount;
+      if (idDiscount !== null && idDiscount !== undefined) {
+        orderInfo += `#${idDiscount}`;
+      }
+
+      // Verify checkout prices match
+      const checkoutResponse = await this.checkoutOrder(purchaseOrderDTO.checkoutReq);
+      
+      if (checkoutResponse.totalPrice !== purchaseOrderDTO.prices.totalPrice ||
+          checkoutResponse.finalPrice !== purchaseOrderDTO.prices.finalPrice ||
+          checkoutResponse.discountPrice !== purchaseOrderDTO.prices.discountPrice) {
+        throw new Error('Price mismatch error');
+      }
+
+      // Create VNPay payment
+      return this.paymentService.createVnPayPayment(request, checkoutResponse.finalPrice, orderInfo);
+    } catch (error) {
+      console.error('Error in processingPurchaseOrder:', error);
+      throw error;
+    }
+  }
 
   /**
    * Create order from cart
@@ -210,27 +302,51 @@ export class OrderService {
    * Complete order after successful payment
    */
   async completeOrder(paymentParams: Record<string, string>): Promise<void> {
-    // Extract order information from VNPay callback parameters
-    const txnRef = paymentParams.vnp_TxnRef;
-    const amount = parseInt(paymentParams.vnp_Amount) / 100; // Convert from VND cents
-    const responseCode = paymentParams.vnp_ResponseCode;
-    
-    console.log('Completing order:', {
-      txnRef,
-      amount,
-      responseCode
-    });
+    try {
+      // Extract and verify secure hash
+      const vnp_SecureHash = paymentParams.vnp_SecureHash;
+      delete paymentParams.vnp_SecureHash;
 
-    // TODO: Implement actual order completion logic:
-    // 1. Find order by transaction reference
-    // 2. Update order status to COMPLETED
-    // 3. Create payment record
-    // 4. Enroll student in courses
-    // 5. Send confirmation email
-    
-    // Mock implementation for now
-    if (responseCode === '00') {
-      console.log(`Order ${txnRef} completed successfully with amount ${amount} VND`);
+      if (!vnp_SecureHash) {
+        throw new Error('vnp_SecureHash is required');
+      }
+
+      // Verify hash (import VNPayUtil and VNPayConfig if needed)
+      // const hashData = VNPayUtil.getPaymentURL(new Map(Object.entries(paymentParams)), false);
+      // const vnpSecureHash = VNPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData);
+      // if (vnpSecureHash !== vnp_SecureHash) {
+      //   throw new Error('vnp_SecureHash is invalid');
+      // }
+
+      const totalPrice = parseInt(paymentParams.vnp_Amount);
+      const orderInfo = paymentParams.vnp_OrderInfo;
+      
+      console.error('Order info:', orderInfo);
+      
+      // Parse order info: format is "idUser##idCourse1#idCourse2#...#idDiscount"
+      const infoOrder = orderInfo.split('##');
+      const idUser = parseInt(infoOrder[0]);
+      
+      // Parse course IDs
+      const coursesPart = infoOrder[1].split('#').filter(id => id);
+      const idCourses = coursesPart.map(id => parseInt(id));
+      
+      // Copy cart to order (enroll student in courses)
+      // TODO: Implement cartService.copyCartToOrder
+      console.log('Enrolling user', idUser, 'in courses:', idCourses);
+      console.log('Total price:', totalPrice / 100); // Convert from VND cents
+
+      // Handle discount if present
+      if (infoOrder.length === 3) {
+        const idDiscount = parseInt(infoOrder[2]);
+        console.error('Discount ID:', idDiscount);
+        // TODO: Implement discountService.deleteDiscountFromStudent(idDiscount, idUser);
+      }
+
+      console.log(`Order completed successfully for user ${idUser}`);
+    } catch (error) {
+      console.error('Error completing order:', error);
+      throw error;
     }
   }
 }

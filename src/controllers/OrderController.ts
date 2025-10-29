@@ -1,14 +1,82 @@
 import { Request, Response } from 'express';
 import { OrderService } from '../services/OrderService';
 import { PaymentService } from '../services/PaymentService';
-import { ApiResponse, PageResponse, MetadataResponse } from '../models/response';
+import { ApiResponse, PageResponse, MetadataResponse, CheckoutResponse } from '../models/response';
 import { Order, OrderStatus } from '../models/entities';
+import { CheckoutRequest, PurchaseOrderRequest } from '../models/request';
+import { VNPayResponse } from '../services/PaymentService';
 
 export class OrderController {
   constructor(
     private orderService: OrderService,
     private paymentService: PaymentService
   ) {}
+
+  /**
+   * Checkout order - calculate total with discount
+   * POST /api/orders/checkout
+   */
+  public checkoutOrder = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const checkoutReq: CheckoutRequest = req.body;
+
+      if (!checkoutReq.idCart || !checkoutReq.idCourses || checkoutReq.idCourses.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'idCart and idCourses are required'
+        } as ApiResponse);
+        return;
+      }
+
+      const checkoutResponse = await this.orderService.checkoutOrder(checkoutReq);
+
+      res.status(200).json({
+        success: true,
+        data: checkoutResponse,
+        message: 'Checkout calculated successfully'
+      } as ApiResponse<CheckoutResponse>);
+
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Failed to checkout order'
+      } as ApiResponse);
+    }
+  };
+
+  /**
+   * Process purchase order and create VNPay payment
+   * POST /api/orders/processingPurchase
+   */
+  public processingPurchase = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const purchaseOrderDTO: PurchaseOrderRequest = req.body;
+
+      if (!purchaseOrderDTO.idUser || !purchaseOrderDTO.checkoutReq || !purchaseOrderDTO.prices) {
+        res.status(400).json({
+          success: false,
+          message: 'idUser, checkoutReq, and prices are required'
+        } as ApiResponse);
+        return;
+      }
+
+      const paymentResponse = await this.orderService.processingPurchaseOrder(purchaseOrderDTO, req);
+
+      res.status(200).json({
+        success: true,
+        data: paymentResponse,
+        message: 'Payment URL created successfully'
+      } as ApiResponse<VNPayResponse>);
+
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Failed to process purchase order'
+      } as ApiResponse);
+    }
+  };
 
   /**
    * Create order from cart

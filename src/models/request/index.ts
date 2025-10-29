@@ -149,6 +149,23 @@ export interface InstructorUpdateRequest {
   avtUrl?: string;
 }
 
+// Order Request DTOs
+export interface CheckoutRequest {
+  idCart: number;
+  idCourses: number[];
+  idDiscount?: number;
+}
+
+export interface PurchaseOrderRequest {
+  prices: {
+    totalPrice: number;
+    discountPrice: number;
+    finalPrice: number;
+  };
+  idUser: number;
+  checkoutReq: CheckoutRequest;
+}
+
 // Enrollment Request DTOs  
 export interface EnrollmentCreateRequest {
   courseId: number;
