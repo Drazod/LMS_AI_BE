@@ -88,6 +88,8 @@ export class OrderService {
       if (idDiscount !== null && idDiscount !== undefined) {
         orderInfo += `#${idDiscount}`;
       }
+      
+      Logger.info('Generated orderInfo:', orderInfo);
 
       // Verify checkout prices match
       const checkoutResponse = await this.checkoutOrder(purchaseOrderDTO.checkoutReq);

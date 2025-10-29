@@ -36,12 +36,16 @@ export class PaymentService {
    * Create VNPay payment
    */
   createVnPayPayment(request: Request, amount: number, orderInfo: string): VNPayResponse {
+    console.log('[VNPay] Creating payment with amount:', amount, 'orderInfo:', orderInfo);
+    
     const vnpParamsMap = this.vnPayConfig.getVNPayConfig();
     
     // Convert amount to VND cents (multiply by 100)
     vnpParamsMap.set('vnp_Amount', String(amount * 100));
     vnpParamsMap.set('vnp_OrderInfo', orderInfo);
     vnpParamsMap.set('vnp_IpAddr', VNPayUtil.getIpAddress(request));
+    
+    console.log('[VNPay] Parameters:', Object.fromEntries(vnpParamsMap));
 
     // Build payment URL
     const queryUrl = VNPayUtil.getPaymentURL(vnpParamsMap, true);
@@ -49,6 +53,9 @@ export class PaymentService {
     const vnpSecureHash = VNPayUtil.hmacSHA512(this.vnPayConfig.getSecretKey(), hashData);
     
     const paymentUrl = `${this.vnPayConfig.getVnpPayUrl()}?${queryUrl}&vnp_SecureHash=${vnpSecureHash}`;
+
+    console.log('[VNPay] Generated payment URL (first 200 chars):', paymentUrl.substring(0, 200));
+    console.log('[VNPay] Secure hash:', vnpSecureHash);
 
     return {
       code: 'ok',
