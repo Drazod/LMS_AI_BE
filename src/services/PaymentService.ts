@@ -54,10 +54,8 @@ export class PaymentService {
     
     const paymentUrl = `${this.vnPayConfig.getVnpPayUrl()}?${queryUrl}&vnp_SecureHash=${vnpSecureHash}`;
 
-    console.log('[VNPay] Query string:', queryUrl);
-    console.log('[VNPay] Hash data:', hashData);
+    console.log('[VNPay] Generated payment URL (first 200 chars):', paymentUrl.substring(0, 200));
     console.log('[VNPay] Secure hash:', vnpSecureHash);
-    console.log('[VNPay] Full payment URL:', paymentUrl);
 
     return {
       code: 'ok',
