@@ -6,6 +6,8 @@ import { CourseEntity } from '../models/entities/CourseEntity';
 import { PaymentService, VNPayResponse } from './PaymentService';
 import { Request } from 'express';
 import { Logger } from '../utils/logger';
+import { VNPayUtil } from '../utils/VNPayUtil';
+import { VNPayConfigService } from '../config/VNPayConfig';
 
 export class OrderService {
   private paymentService: PaymentService;
@@ -320,11 +322,10 @@ export class OrderService {
       }
 
       // Verify hash
-      const VNPayUtil = require('../utils/VNPayUtil').default;
-      const VNPayConfigService = require('../config/VNPayConfig').default;
+      const vnPayConfigService = new VNPayConfigService();
       
       const hashData = VNPayUtil.getPaymentURL(new Map(Object.entries(paymentParams)), false);
-      const vnpSecureHash = VNPayUtil.hmacSHA512(VNPayConfigService.getSecretKey(), hashData);
+      const vnpSecureHash = VNPayUtil.hmacSHA512(vnPayConfigService.getSecretKey(), hashData);
       
       if (vnpSecureHash !== vnp_SecureHash) {
         throw new Error('vnp_SecureHash is invalid');
@@ -373,8 +374,6 @@ export class OrderService {
     await queryRunner.startTransaction();
 
     try {
-      const EnrollmentService = require('./EnrollmentService').default;
-
       // Get cart
       const cartResult = await queryRunner.query(
         'SELECT cart_id FROM cart WHERE student_id = $1',
