@@ -2,8 +2,7 @@ import { Order, OrderStatus, OrderItem, PaymentInfo } from '../models/entities';
 import { PageResponse, CheckoutResponse } from '../models/response';
 import { CheckoutRequest, PurchaseOrderRequest } from '../models/request';
 import { getRepository } from 'typeorm';
-import { Course } from '../models/entities/Course';
-import { Discount } from '../models/entities/Discount';
+import { CourseEntity } from '../models/entities/CourseEntity';
 import { PaymentService, VNPayResponse } from './PaymentService';
 import { Request } from 'express';
 
@@ -19,7 +18,7 @@ export class OrderService {
    */
   async checkoutOrder(checkoutReq: CheckoutRequest): Promise<CheckoutResponse> {
     try {
-      const courseRepo = getRepository(Course);
+      const courseRepo = getRepository(CourseEntity);
       let totalPrice = 0;
 
       // Calculate total price from courses
@@ -28,19 +27,27 @@ export class OrderService {
         if (!course) {
           throw new Error(`Course with ID ${idCourse} not found. Please update cart.`);
         }
-        totalPrice += course.price;
+        totalPrice += Number(course.price) || 0;
       }
 
       let discountPrice = 0;
 
       // Apply discount if provided
       if (checkoutReq.idDiscount !== null && checkoutReq.idDiscount !== undefined) {
-        const discountRepo = getRepository(Discount);
-        const discount = await discountRepo.findOne({ where: { discountId: checkoutReq.idDiscount } });
-        if (!discount) {
+        // TODO: Implement discount lookup when Discount entity is available
+        // For now, using raw query as fallback
+        const connection = courseRepo.manager.connection;
+        const discountResult = await connection.query(
+          'SELECT * FROM discount WHERE discount_id = $1',
+          [checkoutReq.idDiscount]
+        );
+        
+        if (discountResult.length === 0) {
           throw new Error('Discount does not exist');
         }
-        discountPrice = discount.value || 0;
+        
+        const discount = discountResult[0];
+        discountPrice = Number(discount.value || discount.discount_value || 0);
       }
 
       const finalPrice = totalPrice - discountPrice;
