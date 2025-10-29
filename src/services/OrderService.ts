@@ -337,20 +337,14 @@ export class OrderService {
       Logger.info('Order info:', orderInfo);
       
       // Parse order info: format is "idUser##idCourse1#idCourse2#...##idDiscount"
-      Logger.info('Raw orderInfo:', orderInfo);
       const infoOrder = orderInfo.split('##');
-      Logger.info('Split by ##:', infoOrder);
-      
       const idUser = parseInt(infoOrder[0]);
-      Logger.info('Parsed userId:', idUser);
       
       // Parse course IDs
       const coursesPart = infoOrder[1].split('#').filter(id => id);
-      Logger.info('Courses part after split and filter:', coursesPart);
-      
       const idCourses = coursesPart.map(id => parseInt(id));
-      Logger.info('Parsed course IDs:', idCourses);
       
+      Logger.info('Order info:', orderInfo);
       Logger.info('Enrolling user', idUser, 'in courses:', idCourses);
       Logger.info('Total price:', totalPrice / 100); // Convert from VND cents to VND
 
@@ -399,10 +393,7 @@ export class OrderService {
         [cartId]
       );
 
-      Logger.info(`Found ${cartItems.length} items in cart ${cartId}`);
-      if (cartItems.length > 0) {
-        Logger.info('Cart items:', cartItems.map((item: any) => ({ cart_id: item.cart_id, course_id: item.course_id })));
-      }
+      Logger.info(`Found ${cartItems.length} items in cart`);
 
       if (cartItems.length === 0) {
         throw new Error('No items in the cart');
@@ -430,23 +421,16 @@ export class OrderService {
       // Process each cart item
       const cartItemsToDelete: number[] = [];
 
-      Logger.info(`Processing ${cartItems.length} cart items for purchase list:`, courseIds);
-
       for (const cartItem of cartItems) {
         const courseId = cartItem.course_id;
-        Logger.info(`Checking cart item with course_id: ${courseId}`);
 
         // Only process if course is in the purchase list
         if (courseIds.includes(courseId)) {
-          Logger.info(`Course ${courseId} is in purchase list, processing...`);
-          
           // Check if student is already enrolled
           const existingEnrollment = await queryRunner.query(
             'SELECT enrollment_id FROM enrollments WHERE student_id = $1 AND course_id = $2',
             [studentId, courseId]
           );
-
-          Logger.info(`Existing enrollment check for course ${courseId}:`, existingEnrollment.length > 0 ? 'Already enrolled' : 'Not enrolled');
 
           if (existingEnrollment.length === 0) {
             // Get course price
@@ -470,20 +454,17 @@ export class OrderService {
             );
 
             // Enroll student in course
-            Logger.info(`Creating enrollment for student ${studentId} in course ${courseId}`);
             await queryRunner.query(
               `INSERT INTO enrollments (student_id, course_id, enrollment_date, is_complete, current_section_position)
                VALUES ($1, $2, NOW(), false, 1)`,
               [studentId, courseId]
             );
 
-            Logger.info(`✅ Successfully enrolled student ${studentId} in course ${courseId}`);
+            Logger.info(`Enrolled student ${studentId} in course ${courseId}`);
             cartItemsToDelete.push(courseId);
           } else {
             Logger.warn(`Student ${studentId} already enrolled in course ${courseId}`);
           }
-        } else {
-          Logger.warn(`Course ${courseId} NOT in purchase list ${JSON.stringify(courseIds)}, skipping`);
         }
       }
 
