@@ -1,10 +1,11 @@
 import { Order, OrderStatus, OrderItem, PaymentInfo } from '../models/entities';
 import { PageResponse, CheckoutResponse } from '../models/response';
 import { CheckoutRequest, PurchaseOrderRequest } from '../models/request';
-import { getRepository } from 'typeorm';
+import { getRepository, getConnection } from 'typeorm';
 import { CourseEntity } from '../models/entities/CourseEntity';
 import { PaymentService, VNPayResponse } from './PaymentService';
 import { Request } from 'express';
+import { Logger } from '../utils/logger';
 
 export class OrderService {
   private paymentService: PaymentService;
@@ -318,19 +319,23 @@ export class OrderService {
         throw new Error('vnp_SecureHash is required');
       }
 
-      // Verify hash (import VNPayUtil and VNPayConfig if needed)
-      // const hashData = VNPayUtil.getPaymentURL(new Map(Object.entries(paymentParams)), false);
-      // const vnpSecureHash = VNPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData);
-      // if (vnpSecureHash !== vnp_SecureHash) {
-      //   throw new Error('vnp_SecureHash is invalid');
-      // }
+      // Verify hash
+      const VNPayUtil = require('../utils/VNPayUtil').default;
+      const VNPayConfigService = require('../config/VNPayConfig').default;
+      
+      const hashData = VNPayUtil.getPaymentURL(new Map(Object.entries(paymentParams)), false);
+      const vnpSecureHash = VNPayUtil.hmacSHA512(VNPayConfigService.getSecretKey(), hashData);
+      
+      if (vnpSecureHash !== vnp_SecureHash) {
+        throw new Error('vnp_SecureHash is invalid');
+      }
 
       const totalPrice = parseInt(paymentParams.vnp_Amount);
       const orderInfo = paymentParams.vnp_OrderInfo;
       
-      console.error('Order info:', orderInfo);
+      Logger.info('Order info:', orderInfo);
       
-      // Parse order info: format is "idUser##idCourse1#idCourse2#...#idDiscount"
+      // Parse order info: format is "idUser##idCourse1#idCourse2#...##idDiscount"
       const infoOrder = orderInfo.split('##');
       const idUser = parseInt(infoOrder[0]);
       
@@ -338,22 +343,160 @@ export class OrderService {
       const coursesPart = infoOrder[1].split('#').filter(id => id);
       const idCourses = coursesPart.map(id => parseInt(id));
       
-      // Copy cart to order (enroll student in courses)
-      // TODO: Implement cartService.copyCartToOrder
-      console.log('Enrolling user', idUser, 'in courses:', idCourses);
-      console.log('Total price:', totalPrice / 100); // Convert from VND cents
+      Logger.info('Enrolling user', idUser, 'in courses:', idCourses);
+      Logger.info('Total price:', totalPrice / 100); // Convert from VND cents to VND
+
+      // Copy cart to order (create order record and enroll student in courses)
+      await this.copyCartToOrder(idUser, idCourses, totalPrice / 100);
 
       // Handle discount if present
-      if (infoOrder.length === 3) {
+      if (infoOrder.length === 3 && infoOrder[2]) {
         const idDiscount = parseInt(infoOrder[2]);
-        console.error('Discount ID:', idDiscount);
-        // TODO: Implement discountService.deleteDiscountFromStudent(idDiscount, idUser);
+        Logger.info('Deleting discount ID:', idDiscount);
+        await this.deleteDiscountFromStudent(idDiscount, idUser);
       }
 
-      console.log(`Order completed successfully for user ${idUser}`);
+      Logger.info(`Order completed successfully for user ${idUser}`);
     } catch (error) {
-      console.error('Error completing order:', error);
+      Logger.error('Error completing order:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Copy cart to order - creates order record, order items, and enrolls student in courses
+   */
+  private async copyCartToOrder(studentId: number, courseIds: number[], totalPrice: number): Promise<void> {
+    const connection = getConnection();
+    const queryRunner = connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const EnrollmentService = require('./EnrollmentService').default;
+
+      // Get cart
+      const cartResult = await queryRunner.query(
+        'SELECT cart_id FROM cart WHERE student_id = $1',
+        [studentId]
+      );
+
+      if (!cartResult || cartResult.length === 0) {
+        throw new Error('Cart not found');
+      }
+
+      const cartId = cartResult[0].cart_id;
+
+      // Get cart items
+      const cartItems = await queryRunner.query(
+        'SELECT * FROM cart_items WHERE cart_id = $1',
+        [cartId]
+      );
+
+      if (cartItems.length === 0) {
+        throw new Error('No items in the cart');
+      }
+
+      // Create order
+      const orderResult = await queryRunner.query(
+        `INSERT INTO orders (student_id, payment_date, total_price)
+         VALUES ($1, NOW(), $2)
+         RETURNING order_id`,
+        [studentId, totalPrice]
+      );
+
+      const orderId = orderResult[0].order_id;
+      Logger.info(`Created order ${orderId} for student ${studentId}`);
+
+      // Process each cart item
+      const cartItemsToDelete: number[] = [];
+
+      for (const cartItem of cartItems) {
+        const courseId = cartItem.course_id;
+
+        // Only process if course is in the purchase list
+        if (courseIds.includes(courseId)) {
+          // Check if student is already enrolled
+          const existingEnrollment = await queryRunner.query(
+            'SELECT enrollment_id FROM enrollments WHERE student_id = $1 AND course_id = $2',
+            [studentId, courseId]
+          );
+
+          if (existingEnrollment.length === 0) {
+            // Get course price
+            const courseResult = await queryRunner.query(
+              'SELECT price FROM course WHERE course_id = $1',
+              [courseId]
+            );
+
+            if (courseResult.length === 0) {
+              Logger.warn(`Course ${courseId} not found, skipping`);
+              continue;
+            }
+
+            const coursePrice = courseResult[0].price;
+
+            // Create order item
+            await queryRunner.query(
+              `INSERT INTO order_items (order_id, course_id, price)
+               VALUES ($1, $2, $3)`,
+              [orderId, courseId, coursePrice]
+            );
+
+            // Enroll student in course
+            await queryRunner.query(
+              `INSERT INTO enrollments (student_id, course_id, enrollment_date, is_complete, current_section_position)
+               VALUES ($1, $2, NOW(), false, 1)`,
+              [studentId, courseId]
+            );
+
+            Logger.info(`Enrolled student ${studentId} in course ${courseId}`);
+            cartItemsToDelete.push(courseId);
+          } else {
+            Logger.warn(`Student ${studentId} already enrolled in course ${courseId}`);
+          }
+        }
+      }
+
+      // Delete cart items for purchased courses
+      if (cartItemsToDelete.length > 0) {
+        await queryRunner.query(
+          `DELETE FROM cart_items 
+           WHERE cart_id = $1 AND course_id = ANY($2::int[])`,
+          [cartId, cartItemsToDelete]
+        );
+        Logger.info(`Removed ${cartItemsToDelete.length} items from cart`);
+      }
+
+      await queryRunner.commitTransaction();
+      Logger.info('Order transaction completed successfully');
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      Logger.error('Error copying cart to order, rolling back:', error);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Delete discount from student after use
+   */
+  private async deleteDiscountFromStudent(discountId: number, studentId: number): Promise<void> {
+    try {
+      const connection = getConnection();
+      
+      // Delete from student_discount junction table
+      await connection.query(
+        'DELETE FROM student_discount WHERE student_id = $1 AND discount_id = $2',
+        [studentId, discountId]
+      );
+
+      Logger.info(`Deleted discount ${discountId} from student ${studentId}`);
+    } catch (error) {
+      Logger.error('Error deleting discount from student:', error);
+      // Don't throw - this is not critical to order completion
     }
   }
 }
