@@ -205,4 +205,32 @@ export class OrderService {
     // Mock implementation - replace with database integration
     return this.updateOrderStatus(orderId, OrderStatus.CANCELLED);
   }
+
+  /**
+   * Complete order after successful payment
+   */
+  async completeOrder(paymentParams: Record<string, string>): Promise<void> {
+    // Extract order information from VNPay callback parameters
+    const txnRef = paymentParams.vnp_TxnRef;
+    const amount = parseInt(paymentParams.vnp_Amount) / 100; // Convert from VND cents
+    const responseCode = paymentParams.vnp_ResponseCode;
+    
+    console.log('Completing order:', {
+      txnRef,
+      amount,
+      responseCode
+    });
+
+    // TODO: Implement actual order completion logic:
+    // 1. Find order by transaction reference
+    // 2. Update order status to COMPLETED
+    // 3. Create payment record
+    // 4. Enroll student in courses
+    // 5. Send confirmation email
+    
+    // Mock implementation for now
+    if (responseCode === '00') {
+      console.log(`Order ${txnRef} completed successfully with amount ${amount} VND`);
+    }
+  }
 }

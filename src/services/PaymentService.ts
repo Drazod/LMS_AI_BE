@@ -1,4 +1,7 @@
 import { PaymentInfo, PaymentMethod, PaymentStatus } from '../models/entities';
+import { VNPayConfigService } from '../config/VNPayConfig';
+import { VNPayUtil } from '../utils/VNPayUtil';
+import { Request } from 'express';
 
 export interface PaymentData {
   totalPrice: number;
@@ -16,8 +19,43 @@ export interface PaymentResult {
   paymentInfo?: PaymentInfo;
 }
 
+export interface VNPayResponse {
+  code: string;
+  message: string;
+  paymentUrl: string;
+}
+
 export class PaymentService {
-  constructor() {}
+  private vnPayConfig: VNPayConfigService;
+
+  constructor() {
+    this.vnPayConfig = new VNPayConfigService();
+  }
+
+  /**
+   * Create VNPay payment
+   */
+  createVnPayPayment(request: Request, amount: number, orderInfo: string): VNPayResponse {
+    const vnpParamsMap = this.vnPayConfig.getVNPayConfig();
+    
+    // Convert amount to VND cents (multiply by 100)
+    vnpParamsMap.set('vnp_Amount', String(amount * 100));
+    vnpParamsMap.set('vnp_OrderInfo', orderInfo);
+    vnpParamsMap.set('vnp_IpAddr', VNPayUtil.getIpAddress(request));
+
+    // Build payment URL
+    const queryUrl = VNPayUtil.getPaymentURL(vnpParamsMap, true);
+    const hashData = VNPayUtil.getPaymentURL(vnpParamsMap, false);
+    const vnpSecureHash = VNPayUtil.hmacSHA512(this.vnPayConfig.getSecretKey(), hashData);
+    
+    const paymentUrl = `${this.vnPayConfig.getVnpPayUrl()}?${queryUrl}&vnp_SecureHash=${vnpSecureHash}`;
+
+    return {
+      code: 'ok',
+      message: 'success',
+      paymentUrl
+    };
+  }
 
   /**
    * Process payment for order

@@ -1,12 +1,40 @@
 import { Request, Response } from 'express';
-import { PaymentService } from '../services/PaymentService';
+import { PaymentService, VNPayResponse } from '../services/PaymentService';
 import { ApiResponse } from '../models/response';
+import { OrderService } from '../services/OrderService';
 
 export class PaymentController {
   private paymentService: PaymentService;
+  private orderService: OrderService;
+  private frontendHost: string;
 
-  constructor() {
+  constructor(orderService?: OrderService) {
     this.paymentService = new PaymentService();
+    this.orderService = orderService || new OrderService();
+    this.frontendHost = process.env.FRONTEND_HOST || 'http://localhost:5173';
+  }
+
+  /**
+   * VNPay payment callback handler
+   * GET /api/payment/vn-pay-callback
+   */
+  async payCallbackHandler(req: Request, res: Response): Promise<void> {
+    try {
+      const reqParams = req.query as Record<string, string>;
+      const status = reqParams.vnp_ResponseCode;
+
+      if (status === '00') {
+        // Payment successful
+        await this.orderService.completeOrder(reqParams);
+        res.redirect(`${this.frontendHost}/payment-success`);
+      } else {
+        // Payment failed
+        res.redirect(`${this.frontendHost}/payment-failed`);
+      }
+    } catch (error) {
+      console.error('Payment callback error:', error);
+      res.redirect(`${this.frontendHost}/payment-failed`);
+    }
   }
 
   /**

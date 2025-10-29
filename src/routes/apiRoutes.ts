@@ -1,4 +1,5 @@
 import { AnswerController } from '../controllers/AnswerController';
+import { PaymentController } from '../controllers/PaymentController';
 
 import { Router } from 'express';
 import { AuthenticationController } from '../controllers/AuthenticationController';
@@ -19,6 +20,7 @@ import { StudentService } from '../services/StudentService';
 import { InstructorService } from '../services/InstructorService';
 import { CategoryService } from '../services/CategoryService';
 import { CartService } from '../services/CartService';
+import { OrderService } from '../services/OrderService';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { uploadMiddleware } from '../middleware/uploadMiddleware';
 import { cloudinaryUploadMiddleware } from '../middleware/cloudinaryUploadMiddleware';
@@ -33,7 +35,9 @@ const studentService = new StudentService();
 const instructorService = new InstructorService();
 const categoryService = new CategoryService();
 const cartService = CartService.getInstance();
+const orderService = new OrderService();
 const answerController = new AnswerController();
+const paymentController = new PaymentController(orderService);
 // Initialize controllers
 const authController = new AuthenticationController(authService, emailService, userService);
 const courseController = new CourseController(courseService);
@@ -203,6 +207,12 @@ export const setupApiRoutes = (router: Router): void => {
   contentRouter.delete('/:contentId', authMiddleware, contentController.deleteContent);
   
   router.use('/content', contentRouter);
+
+  // Payment routes
+  const paymentRouter = Router();
+  paymentRouter.get('/vn-pay-callback', paymentController.payCallbackHandler.bind(paymentController));
+  
+  router.use('/payment', paymentRouter);
 
   // Health check route
   router.get('/health', (req, res) => {
