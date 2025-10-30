@@ -422,7 +422,7 @@ export class OrderService {
       const cartItemsToDelete: number[] = [];
 
       for (const cartItem of cartItems) {
-        const courseId = cartItem.course_id;
+        const courseId = parseInt(cartItem.course_id); // Convert string to number
         Logger.info(`DEBUG: Processing cart item with course_id: ${courseId}`);
 
         // Only process if course is in the purchase list
