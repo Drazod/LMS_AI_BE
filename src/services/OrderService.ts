@@ -337,16 +337,22 @@ export class OrderService {
       const orderInfo = paymentParams.vnp_OrderInfo;
       
       Logger.info('Order info:', orderInfo);
+      Logger.info('DEBUG: Raw orderInfo:', JSON.stringify(orderInfo));
       
       // Parse order info: format is "idUser##idCourse1#idCourse2#...##idDiscount"
       const infoOrder = orderInfo.split('##');
+      Logger.info('DEBUG: infoOrder split result:', JSON.stringify(infoOrder));
+      
       const idUser = parseInt(infoOrder[0]);
       
       // Parse course IDs
       const coursesPart = infoOrder[1].split('#').filter(id => id);
+      Logger.info('DEBUG: coursesPart after split and filter:', JSON.stringify(coursesPart));
+      
       const idCourses = coursesPart.map(id => parseInt(id));
       
       Logger.info('Enrolling user', idUser, 'in courses:', idCourses);
+      Logger.info('DEBUG: Final idCourses array:', JSON.stringify(idCourses));
       Logger.info('Total price:', totalPrice / 100); // Convert from VND cents to VND
 
       // Copy cart to order (create order record and enroll student in courses)
