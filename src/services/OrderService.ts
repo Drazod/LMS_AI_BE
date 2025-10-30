@@ -439,7 +439,7 @@ export class OrderService {
             Logger.info(`DEBUG: No existing enrollment, proceeding to enroll student ${studentId} in course ${courseId}`);
             // Get course price
             const courseResult = await queryRunner.query(
-              'SELECT price FROM course WHERE course_id = $1',
+              'SELECT price FROM courses WHERE course_id = $1',
               [courseId]
             );
 
