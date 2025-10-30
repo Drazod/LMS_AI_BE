@@ -398,6 +398,9 @@ export class OrderService {
         throw new Error('No items in the cart');
       }
 
+      Logger.info(`DEBUG: Found ${cartItems.length} cart items:`, JSON.stringify(cartItems));
+      Logger.info(`DEBUG: Course IDs to purchase:`, JSON.stringify(courseIds));
+
       // Create order
       const orderResult = await queryRunner.query(
         `INSERT INTO orders (student_id, payment_date, total_price)
@@ -414,16 +417,20 @@ export class OrderService {
 
       for (const cartItem of cartItems) {
         const courseId = cartItem.course_id;
+        Logger.info(`DEBUG: Processing cart item with course_id: ${courseId}`);
 
         // Only process if course is in the purchase list
         if (courseIds.includes(courseId)) {
+          Logger.info(`DEBUG: Course ${courseId} IS in purchase list, checking enrollment...`);
           // Check if student is already enrolled
           const existingEnrollment = await queryRunner.query(
             'SELECT enrollment_id FROM enrollments WHERE student_id = $1 AND course_id = $2',
             [studentId, courseId]
           );
+          Logger.info(`DEBUG: Existing enrollment check result:`, JSON.stringify(existingEnrollment));
 
           if (existingEnrollment.length === 0) {
+            Logger.info(`DEBUG: No existing enrollment, proceeding to enroll student ${studentId} in course ${courseId}`);
             // Get course price
             const courseResult = await queryRunner.query(
               'SELECT price FROM course WHERE course_id = $1',
@@ -456,6 +463,8 @@ export class OrderService {
           } else {
             Logger.warn(`Student ${studentId} already enrolled in course ${courseId}`);
           }
+        } else {
+          Logger.info(`DEBUG: Course ${courseId} is NOT in purchase list, skipping`);
         }
       }
 
