@@ -456,7 +456,13 @@ export class OrderService {
                VALUES ($1, $2, $3)`,
               [orderId, courseId, coursePrice]
             );
-
+            // Fix sequence if needed (ensure it's ahead of existing IDs)
+            await queryRunner.query(`
+              SELECT setval('enrollments_enrollment_id_seq', 
+                COALESCE((SELECT MAX(enrollment_id) FROM enrollments), 0) + 1, 
+                false
+              )
+            `);
             // Enroll student in course
             await queryRunner.query(
               `INSERT INTO enrollments (student_id, course_id, enrollment_date, is_complete, current_section_position)
